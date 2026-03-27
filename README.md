@@ -102,7 +102,7 @@ remappings = ["@openzeppelin/=lib/openzeppelin-contracts/"]
 - Emergency pause mechanism (no owner sweep)
 - $100K TVL cap as pre-audit precaution
 - Dead shares for ERC-4626 inflation attack protection
-- Professional audit: Nethermind (scheduled)
+- Professional audit: scheduled
 
 See [`docs/KNOWN-ISSUES.md`](docs/KNOWN-ISSUES.md) for intentional design decisions, edge cases, and trust assumptions.
 
