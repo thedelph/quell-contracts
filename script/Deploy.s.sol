@@ -10,14 +10,14 @@ import {QUELLToken} from "../src/QUELLToken.sol";
 import {GovStaking} from "../src/GovStaking.sol";
 import {FeeDistributor} from "../src/FeeDistributor.sol";
 import {RWAVault} from "../src/RWAVault.sol";
-import {MorphoAdapter} from "../src/adapters/MorphoAdapter.sol";
-import {IMorphoAdapter} from "../src/adapters/IMorphoAdapter.sol";
+import {SparkAdapter} from "../src/adapters/SparkAdapter.sol";
+import {IYieldAdapter} from "../src/adapters/IYieldAdapter.sol";
 
-/// @title Deploy — Base Mainnet deployment script
+/// @title Deploy -- Arbitrum Mainnet deployment script
 /// @notice Full 10-step deployment sequence per PRD
 contract Deploy is Script {
-    // --- Base Mainnet Addresses ---
-    address constant USDC = 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
+    // --- Arbitrum Mainnet Addresses ---
+    address constant USDC = 0xaf88d065e77c8cC2239327C5EDb3A432268e5831;
 
     // --- Default Parameters ---
     uint256 constant MANAGEMENT_FEE_BPS = 20;    // 0.2%
@@ -36,7 +36,7 @@ contract Deploy is Script {
         require(treasury != deployer, "Treasury must differ from deployer");
         require(guardian != deployer, "Guardian must differ from deployer");
         require(treasury != guardian, "Treasury must differ from guardian");
-        require(block.chainid == 8453, "Must deploy on Base Mainnet (chainId 8453)");
+        require(block.chainid == 42161, "Must deploy on Arbitrum One (chainId 42161)");
 
         console.log("Deployer:", deployer);
         console.log("Treasury:", treasury);
@@ -65,12 +65,12 @@ contract Deploy is Script {
         FeeDistributor distributor = new FeeDistributor(USDC, address(staking), treasury);
         console.log("FeeDistributor:", address(distributor));
 
-        // --- Step 5: Link staking ↔ distributor ---
+        // --- Step 5: Link staking <-> distributor ---
         staking.setFeeDistributor(address(distributor));
 
-        // --- Step 6: MorphoAdapter (real, uses constant STEAKHOUSE_VAULT) ---
-        MorphoAdapter adapter = new MorphoAdapter();
-        console.log("MorphoAdapter:", address(adapter));
+        // --- Step 6: SparkAdapter (uses constant YIELD_VAULT = Spark sUSDC on Arb) ---
+        SparkAdapter adapter = new SparkAdapter();
+        console.log("SparkAdapter:", address(adapter));
 
         // --- Step 7: TimelockController (48hr delay) ---
         address[] memory proposers = new address[](1);
@@ -88,7 +88,7 @@ contract Deploy is Script {
         // --- Step 8: RWAVault ---
         RWAVault vault = new RWAVault(
             IERC20(USDC),
-            IMorphoAdapter(address(adapter)),
+            IYieldAdapter(address(adapter)),
             distributor,
             deployer,              // owner (transferred to timelock in step 10)
             guardian,
@@ -100,11 +100,11 @@ contract Deploy is Script {
 
         // --- Step 9: Set strategy description ---
         vault.setStrategyDescription(
-            "Steakhouse USDC MetaMorpho Vault - RWA-backed yield on Base"
+            "Spark sUSDC Vault - RWA-backed yield via Sky Savings Rate on Arbitrum"
         );
 
         // --- Step 10: Transfer vault ownership to timelock (two-step) ---
-        // Propose transfer — timelock must call vault.acceptOwnership() to complete
+        // Propose transfer -- timelock must call vault.acceptOwnership() to complete
         vault.transferOwnership(address(timelock));
         console.log("Vault ownership transfer proposed to timelock");
         console.log("NOTE: Timelock must call vault.acceptOwnership() to complete transfer");
@@ -112,7 +112,7 @@ contract Deploy is Script {
         vm.stopBroadcast();
 
         console.log("");
-        console.log("=== Mainnet deployment complete ===");
+        console.log("=== Arbitrum deployment complete ===");
         console.log("");
 
         // --- Structured Address Export ---
@@ -131,6 +131,6 @@ contract Deploy is Script {
         console.log("=== END DEPLOYED ADDRESSES ===");
         console.log("");
         console.log("To verify: save the above block to .env.deploy, then run:");
-        console.log("  source .env.deploy && forge script script/VerifyDeployment.s.sol --rpc-url $BASE_MAINNET_RPC");
+        console.log("  source .env.deploy && forge script script/VerifyDeployment.s.sol --rpc-url $ARBITRUM_RPC");
     }
 }

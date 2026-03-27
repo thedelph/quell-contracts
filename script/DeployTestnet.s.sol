@@ -10,12 +10,12 @@ import {QUELLToken} from "../src/QUELLToken.sol";
 import {GovStaking} from "../src/GovStaking.sol";
 import {FeeDistributor} from "../src/FeeDistributor.sol";
 import {RWAVault} from "../src/RWAVault.sol";
-import {MockMorphoAdapter} from "../src/adapters/MockMorphoAdapter.sol";
-import {IMorphoAdapter} from "../src/adapters/IMorphoAdapter.sol";
+import {MockYieldAdapter} from "../src/adapters/MockYieldAdapter.sol";
+import {IYieldAdapter} from "../src/adapters/IYieldAdapter.sol";
 
 // Test mocks (deployed on testnet only)
 import {MockUSDC} from "../test/mocks/MockUSDC.sol";
-import {MockSteakhouseVault} from "../test/mocks/MockSteakhouseVault.sol";
+import {MockYieldVault} from "../test/mocks/MockYieldVault.sol";
 
 /// @title DeployTestnet — Base Sepolia deployment script
 /// @notice Deploys full protocol with mock contracts for testing
@@ -33,11 +33,11 @@ contract DeployTestnet is Script {
         MockUSDC usdc = new MockUSDC();
         console.log("MockUSDC:", address(usdc));
 
-        MockSteakhouseVault steakhouse = new MockSteakhouseVault(IERC20(address(usdc)));
-        console.log("MockSteakhouseVault:", address(steakhouse));
+        MockYieldVault mockVault = new MockYieldVault(IERC20(address(usdc)));
+        console.log("MockYieldVault:", address(mockVault));
 
-        MockMorphoAdapter adapter = new MockMorphoAdapter(address(steakhouse));
-        console.log("MockMorphoAdapter:", address(adapter));
+        MockYieldAdapter adapter = new MockYieldAdapter(address(mockVault));
+        console.log("MockYieldAdapter:", address(adapter));
 
         // --- Step 1: VestingWallet (4yr vest, 1yr cliff) ---
         VestingWallet vestingWallet = new VestingWallet(
@@ -80,7 +80,7 @@ contract DeployTestnet is Script {
         // --- Step 8: RWAVault ---
         RWAVault vault = new RWAVault(
             IERC20(address(usdc)),
-            IMorphoAdapter(address(adapter)),
+            IYieldAdapter(address(adapter)),
             distributor,
             deployer,              // owner (transferred to timelock below)
             deployer,              // guardian (deployer for testnet)
@@ -92,7 +92,7 @@ contract DeployTestnet is Script {
 
         // --- Step 9: Set strategy description ---
         vault.setStrategyDescription(
-            "Steakhouse USDC MetaMorpho Vault - RWA-backed yield on Base (TESTNET)"
+            "Spark sUSDC Vault - RWA-backed yield via Sky Savings Rate (TESTNET)"
         );
 
         // --- Step 10: Transfer vault ownership to timelock (two-step) ---

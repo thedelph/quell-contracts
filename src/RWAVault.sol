@@ -8,10 +8,10 @@ import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step.sol";
-import {IMorphoAdapter} from "./adapters/IMorphoAdapter.sol";
+import {IYieldAdapter} from "./adapters/IYieldAdapter.sol";
 import {FeeDistributor} from "./FeeDistributor.sol";
 
-/// @title RWAVault — ERC-4626 vault routing USDC to Steakhouse MetaMorpho for RWA yield
+/// @title RWAVault -- ERC-4626 vault routing USDC to an underlying yield vault
 /// @notice Custom pause logic: emergency mode blocks deposits but allows redemptions
 contract RWAVault is ERC4626, Ownable2Step {
     using SafeERC20 for IERC20;
@@ -25,7 +25,7 @@ contract RWAVault is ERC4626, Ownable2Step {
     uint256 public constant MAX_PERFORMANCE_FEE_BPS = 3000; // 30%
 
     // --- State ---
-    IMorphoAdapter public adapter;
+    IYieldAdapter public adapter;
     FeeDistributor public feeDistributor;
     address public guardian;
 
@@ -64,7 +64,7 @@ contract RWAVault is ERC4626, Ownable2Step {
     }
 
     /// @param _usdc USDC token address
-    /// @param _adapter Initial MorphoAdapter
+    /// @param _adapter Initial yield adapter
     /// @param _feeDistributor FeeDistributor contract
     /// @param _owner Vault owner (later transferred to timelock)
     /// @param _guardian Guardian address for pause/emergency
@@ -73,7 +73,7 @@ contract RWAVault is ERC4626, Ownable2Step {
     /// @param _tvlCap Maximum TVL in USDC (6 decimals)
     constructor(
         IERC20 _usdc,
-        IMorphoAdapter _adapter,
+        IYieldAdapter _adapter,
         FeeDistributor _feeDistributor,
         address _owner,
         address _guardian,
@@ -93,8 +93,8 @@ contract RWAVault is ERC4626, Ownable2Step {
         highWaterMark = 1e18;
         lastFeeHarvest = block.timestamp;
 
-        // Approve Steakhouse vault for deposits
-        IERC20(asset()).approve(_adapter.STEAKHOUSE_VAULT(), type(uint256).max);
+        // Approve yield vault for deposits
+        IERC20(asset()).approve(_adapter.YIELD_VAULT(), type(uint256).max);
     }
 
     // --- ERC4626 Overrides ---
@@ -104,10 +104,10 @@ contract RWAVault is ERC4626, Ownable2Step {
     }
 
     function totalAssets() public view override returns (uint256) {
-        address steakhouseVault = adapter.STEAKHOUSE_VAULT();
-        uint256 steakShares = IERC20(steakhouseVault).balanceOf(address(this));
-        if (steakShares == 0) return 0;
-        return adapter.sharesToUsdc(steakShares);
+        address yieldVault = adapter.YIELD_VAULT();
+        uint256 vaultShares = IERC20(yieldVault).balanceOf(address(this));
+        if (vaultShares == 0) return 0;
+        return adapter.sharesToUsdc(vaultShares);
     }
 
     function maxDeposit(address) public view override returns (uint256) {
@@ -141,8 +141,8 @@ contract RWAVault is ERC4626, Ownable2Step {
         // Pull USDC from caller
         SafeERC20.safeTransferFrom(IERC20(asset()), caller, address(this), assets);
 
-        // Deposit into Steakhouse vault (uses constructor's max approval)
-        IERC4626(adapter.STEAKHOUSE_VAULT()).deposit(assets, address(this));
+        // Deposit into yield vault (uses constructor's max approval)
+        IERC4626(adapter.YIELD_VAULT()).deposit(assets, address(this));
 
         // Mint vault shares to receiver
         _mint(receiver, shares);
@@ -151,7 +151,7 @@ contract RWAVault is ERC4626, Ownable2Step {
     }
 
     /// @notice Override redeem to harvest fees before ERC-4626 preview calculation
-    /// @dev Ensures previewRedeem uses post-harvest totalAssets, preventing Steakhouse share overshoot
+    /// @dev Ensures previewRedeem uses post-harvest totalAssets, preventing yield vault share overshoot
     function redeem(uint256 shares, address receiver, address owner_) public override returns (uint256) {
         _harvestFees();
         return super.redeem(shares, receiver, owner_);
@@ -182,19 +182,19 @@ contract RWAVault is ERC4626, Ownable2Step {
 
         _burn(owner_, shares);
 
-        // Redeem from Steakhouse vault
-        address steakhouseVault = adapter.STEAKHOUSE_VAULT();
-        uint256 steakSharesToRedeem = adapter.usdcToShares(assets);
+        // Redeem from yield vault
+        address yieldVault = adapter.YIELD_VAULT();
+        uint256 vaultSharesToRedeem = adapter.usdcToShares(assets);
         // Cap to actual balance for dust rounding — overshoot must be < 0.01%
-        uint256 steakBalance = IERC20(steakhouseVault).balanceOf(address(this));
-        if (steakSharesToRedeem > steakBalance) {
-            if (steakSharesToRedeem - steakBalance > steakSharesToRedeem / 10000) {
+        uint256 yieldBalance = IERC20(yieldVault).balanceOf(address(this));
+        if (vaultSharesToRedeem > yieldBalance) {
+            if (vaultSharesToRedeem - yieldBalance > vaultSharesToRedeem / 10000) {
                 revert ExcessiveRounding();
             }
-            steakSharesToRedeem = steakBalance;
+            vaultSharesToRedeem = yieldBalance;
         }
-        uint256 usdcReceived = IERC4626(steakhouseVault).redeem(
-            steakSharesToRedeem, address(this), address(this)
+        uint256 usdcReceived = IERC4626(yieldVault).redeem(
+            vaultSharesToRedeem, address(this), address(this)
         );
 
         // Dust tolerance: allow up to 2 wei less than expected
@@ -235,14 +235,14 @@ contract RWAVault is ERC4626, Ownable2Step {
 
         if (totalFee == 0) return;
 
-        // Redeem steakShares worth totalFee and send to FeeDistributor
-        // Wrapped in try/catch so a Steakhouse revert doesn't block user deposits/withdrawals
-        address steakhouseVault = adapter.STEAKHOUSE_VAULT();
-        uint256 steakSharesToRedeem = adapter.usdcToShares(totalFee);
-        if (steakSharesToRedeem == 0) return;
+        // Redeem vaultShares worth totalFee and send to FeeDistributor
+        // Wrapped in try/catch so a yield vault revert doesn't block user deposits/withdrawals
+        address yieldVault = adapter.YIELD_VAULT();
+        uint256 vaultSharesToRedeem = adapter.usdcToShares(totalFee);
+        if (vaultSharesToRedeem == 0) return;
 
-        try IERC4626(steakhouseVault).redeem(
-            steakSharesToRedeem, address(this), address(this)
+        try IERC4626(yieldVault).redeem(
+            vaultSharesToRedeem, address(this), address(this)
         ) returns (uint256 feeUsdc) {
             if (feeUsdc > 0) {
                 IERC20(asset()).safeTransfer(address(feeDistributor), feeUsdc);
@@ -295,16 +295,16 @@ contract RWAVault is ERC4626, Ownable2Step {
 
     // --- Owner Functions ---
 
-    /// @notice Update the Morpho adapter (revokes old approval, sets new)
+    /// @notice Update the yield adapter (revokes old approval, sets new)
     /// @dev Migration requires users to withdraw first: emergency mode → users redeem → setAdapter → unpause
-    function setAdapter(IMorphoAdapter _newAdapter) external onlyOwner {
-        address oldVault = adapter.STEAKHOUSE_VAULT();
+    function setAdapter(IYieldAdapter _newAdapter) external onlyOwner {
+        address oldVault = adapter.YIELD_VAULT();
         IERC20(asset()).approve(oldVault, 0);
 
         address oldAdapter = address(adapter);
         adapter = _newAdapter;
 
-        address newVault = _newAdapter.STEAKHOUSE_VAULT();
+        address newVault = _newAdapter.YIELD_VAULT();
         IERC20(asset()).approve(newVault, type(uint256).max);
 
         emit AdapterUpdated(oldAdapter, address(_newAdapter));

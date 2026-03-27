@@ -6,10 +6,10 @@ import {RWAVault} from "../../src/RWAVault.sol";
 import {FeeDistributor} from "../../src/FeeDistributor.sol";
 import {GovStaking} from "../../src/GovStaking.sol";
 import {QUELLToken} from "../../src/QUELLToken.sol";
-import {MockMorphoAdapter} from "../../src/adapters/MockMorphoAdapter.sol";
-import {IMorphoAdapter} from "../../src/adapters/IMorphoAdapter.sol";
+import {MockYieldAdapter} from "../../src/adapters/MockYieldAdapter.sol";
+import {IYieldAdapter} from "../../src/adapters/IYieldAdapter.sol";
 import {MockUSDC} from "../mocks/MockUSDC.sol";
-import {MockSteakhouseVault} from "../mocks/MockSteakhouseVault.sol";
+import {MockYieldVault} from "../mocks/MockYieldVault.sol";
 import {DelegatingMockAdapter} from "../mocks/DelegatingMockAdapter.sol";
 import {TimelockController} from "@openzeppelin/contracts/governance/TimelockController.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -17,7 +17,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 contract FullFlowTest is Test {
     RWAVault public vault;
     MockUSDC public usdc;
-    MockSteakhouseVault public steakhouse;
+    MockYieldVault public mockVault;
     DelegatingMockAdapter public adapter;
     FeeDistributor public distributor;
     GovStaking public staking;
@@ -38,8 +38,8 @@ contract FullFlowTest is Test {
     function setUp() public {
         // Full deployment sequence
         usdc = new MockUSDC();
-        steakhouse = new MockSteakhouseVault(IERC20(address(usdc)));
-        adapter = new DelegatingMockAdapter(address(steakhouse));
+        mockVault = new MockYieldVault(IERC20(address(usdc)));
+        adapter = new DelegatingMockAdapter(address(mockVault));
         gov = new QUELLToken(treasury, vestingWallet);
         staking = new GovStaking(address(gov), address(usdc), owner);
         distributor = new FeeDistributor(address(usdc), address(staking), treasury);
@@ -49,7 +49,7 @@ contract FullFlowTest is Test {
 
         vault = new RWAVault(
             IERC20(address(usdc)),
-            IMorphoAdapter(address(adapter)),
+            IYieldAdapter(address(adapter)),
             distributor,
             owner,
             guardian,
@@ -126,7 +126,7 @@ contract FullFlowTest is Test {
     function testNoStakersFeesHeld() public {
         _fundAndDeposit(alice, 10_000e6);
         vm.warp(block.timestamp + 30 days);
-        usdc.mint(address(steakhouse), 10_000e6);
+        usdc.mint(address(mockVault), 10_000e6);
 
         // Bob deposits, triggering harvest
         _fundAndDeposit(bob, 1_000e6);
@@ -161,7 +161,7 @@ contract FullFlowTest is Test {
 
     function testEmergencyMode() public {
         _fundAndDeposit(alice, 10_000e6);
-        usdc.mint(address(steakhouse), 10_000e6);
+        usdc.mint(address(mockVault), 10_000e6);
 
         // Guardian activates emergency
         vm.prank(guardian);
@@ -219,13 +219,13 @@ contract FullFlowTest is Test {
         assertEq(vault.owner(), address(timelock));
 
         // Deploy new adapter
-        MockSteakhouseVault newSteakhouse = new MockSteakhouseVault(IERC20(address(usdc)));
+        MockYieldVault newSteakhouse = new MockYieldVault(IERC20(address(usdc)));
         DelegatingMockAdapter newAdapter = new DelegatingMockAdapter(address(newSteakhouse));
 
         // Schedule setAdapter via timelock
         bytes memory data = abi.encodeWithSelector(
             RWAVault.setAdapter.selector,
-            IMorphoAdapter(address(newAdapter))
+            IYieldAdapter(address(newAdapter))
         );
 
         vm.prank(owner);
@@ -253,6 +253,6 @@ contract FullFlowTest is Test {
         // Verify adapter updated
         assertEq(address(vault.adapter()), address(newAdapter));
         // Old vault approval revoked
-        assertEq(usdc.allowance(address(vault), address(steakhouse)), 0);
+        assertEq(usdc.allowance(address(vault), address(mockVault)), 0);
     }
 }

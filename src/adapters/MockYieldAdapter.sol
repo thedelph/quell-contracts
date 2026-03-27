@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
-import {IMorphoAdapter} from "./IMorphoAdapter.sol";
+import {IYieldAdapter} from "./IYieldAdapter.sol";
 
-/// @title MockMorphoAdapter — Time-based ~3% APY simulation for testing
+/// @title MockYieldAdapter -- Time-based ~3% APY simulation for testing
 /// @notice Linear share price appreciation from 1e18 at deploy, ~3% per year
-contract MockMorphoAdapter is IMorphoAdapter {
-    address public immutable override STEAKHOUSE_VAULT;
+contract MockYieldAdapter is IYieldAdapter {
+    address public immutable override YIELD_VAULT;
 
     uint256 public immutable DEPLOY_TIME;
 
@@ -16,24 +16,24 @@ contract MockMorphoAdapter is IMorphoAdapter {
     uint256 public constant SECONDS_PER_YEAR = 365 days;
     uint256 public constant DECIMALS_OFFSET = 1e12;
 
-    /// @param mockVault Address of the mock vault (for STEAKHOUSE_VAULT getter)
+    /// @param mockVault Address of the mock vault (for YIELD_VAULT getter)
     constructor(address mockVault) {
-        STEAKHOUSE_VAULT = mockVault;
+        YIELD_VAULT = mockVault;
         DEPLOY_TIME = block.timestamp;
     }
 
-    /// @inheritdoc IMorphoAdapter
+    /// @inheritdoc IYieldAdapter
     function getSharePrice() public view override returns (uint256) {
         uint256 elapsed = block.timestamp - DEPLOY_TIME;
         return INITIAL_PRICE + (INITIAL_PRICE * APY_BPS * elapsed) / (BPS_DENOMINATOR * SECONDS_PER_YEAR);
     }
 
-    /// @inheritdoc IMorphoAdapter
-    function sharesToUsdc(uint256 steakShares) external view override returns (uint256) {
-        return (steakShares * getSharePrice()) / 1e18 / DECIMALS_OFFSET;
+    /// @inheritdoc IYieldAdapter
+    function sharesToUsdc(uint256 shares) external view override returns (uint256) {
+        return (shares * getSharePrice()) / 1e18 / DECIMALS_OFFSET;
     }
 
-    /// @inheritdoc IMorphoAdapter
+    /// @inheritdoc IYieldAdapter
     function usdcToShares(uint256 usdcAmount) external view override returns (uint256) {
         return (usdcAmount * DECIMALS_OFFSET * 1e18) / getSharePrice();
     }

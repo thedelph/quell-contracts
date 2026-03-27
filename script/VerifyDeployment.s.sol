@@ -7,7 +7,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {RWAVault} from "../src/RWAVault.sol";
 import {GovStaking} from "../src/GovStaking.sol";
 import {FeeDistributor} from "../src/FeeDistributor.sol";
-import {IMorphoAdapter} from "../src/adapters/IMorphoAdapter.sol";
+import {IYieldAdapter} from "../src/adapters/IYieldAdapter.sol";
 
 /// @title VerifyDeployment — Read-only post-deploy verification
 /// @notice Reads deployed addresses from env vars and verifies all configuration.
@@ -84,9 +84,9 @@ contract VerifyDeployment is Script {
         address adapterAddr = vm.envAddress("ADAPTER_ADDRESS");
         address usdc = vm.envAddress("USDC_ADDRESS");
 
-        address steakhouseVault = IMorphoAdapter(adapterAddr).STEAKHOUSE_VAULT();
-        uint256 allowance = IERC20(usdc).allowance(vaultAddr, steakhouseVault);
-        _check("USDC allowance vault->steakhouse == max", allowance == type(uint256).max);
+        address yieldVault = IYieldAdapter(adapterAddr).YIELD_VAULT();
+        uint256 allowance = IERC20(usdc).allowance(vaultAddr, yieldVault);
+        _check("USDC allowance vault->yieldVault == max", allowance == type(uint256).max);
     }
 
     function _check(string memory label, bool condition) internal {

@@ -2,19 +2,19 @@
 pragma solidity 0.8.24;
 
 import {Test} from "forge-std/Test.sol";
-import {MockMorphoAdapter} from "../src/adapters/MockMorphoAdapter.sol";
-import {MockSteakhouseVault} from "./mocks/MockSteakhouseVault.sol";
+import {MockYieldAdapter} from "../src/adapters/MockYieldAdapter.sol";
+import {MockYieldVault} from "./mocks/MockYieldVault.sol";
 import {MockUSDC} from "./mocks/MockUSDC.sol";
 
-contract MockMorphoAdapterTest is Test {
-    MockMorphoAdapter public adapter;
-    MockSteakhouseVault public vault;
+contract MockYieldAdapterTest is Test {
+    MockYieldAdapter public adapter;
+    MockYieldVault public vault;
     MockUSDC public usdc;
 
     function setUp() public {
         usdc = new MockUSDC();
-        vault = new MockSteakhouseVault(usdc);
-        adapter = new MockMorphoAdapter(address(vault));
+        vault = new MockYieldVault(usdc);
+        adapter = new MockYieldAdapter(address(vault));
     }
 
     function testInitialSharePrice() public view {
@@ -66,7 +66,7 @@ contract MockMorphoAdapterTest is Test {
         assertApproxEqAbs(usdcOut, usdcIn, 1);
     }
 
-    function testSteakhouseVaultAddress() public view {
-        assertEq(adapter.STEAKHOUSE_VAULT(), address(vault));
+    function testYieldVaultAddress() public view {
+        assertEq(adapter.YIELD_VAULT(), address(vault));
     }
 }

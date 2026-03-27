@@ -6,18 +6,18 @@ import {RWAVault} from "../../src/RWAVault.sol";
 import {FeeDistributor} from "../../src/FeeDistributor.sol";
 import {GovStaking} from "../../src/GovStaking.sol";
 import {QUELLToken} from "../../src/QUELLToken.sol";
-import {MockMorphoAdapter} from "../../src/adapters/MockMorphoAdapter.sol";
-import {IMorphoAdapter} from "../../src/adapters/IMorphoAdapter.sol";
+import {MockYieldAdapter} from "../../src/adapters/MockYieldAdapter.sol";
+import {IYieldAdapter} from "../../src/adapters/IYieldAdapter.sol";
 import {MockUSDC} from "../mocks/MockUSDC.sol";
-import {MockSteakhouseVault} from "../mocks/MockSteakhouseVault.sol";
+import {MockYieldVault} from "../mocks/MockYieldVault.sol";
 import {RWAVaultHandler} from "./RWAVaultHandler.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract RWAVaultInvariants is Test {
     RWAVault public vault;
     MockUSDC public usdc;
-    MockSteakhouseVault public steakhouse;
-    MockMorphoAdapter public adapter;
+    MockYieldVault public mockVault;
+    MockYieldAdapter public adapter;
     FeeDistributor public distributor;
     GovStaking public staking;
     QUELLToken public gov;
@@ -30,8 +30,8 @@ contract RWAVaultInvariants is Test {
 
     function setUp() public {
         usdc = new MockUSDC();
-        steakhouse = new MockSteakhouseVault(IERC20(address(usdc)));
-        adapter = new MockMorphoAdapter(address(steakhouse));
+        mockVault = new MockYieldVault(IERC20(address(usdc)));
+        adapter = new MockYieldAdapter(address(mockVault));
         gov = new QUELLToken(treasury, vestingWallet);
         staking = new GovStaking(address(gov), address(usdc), owner);
         distributor = new FeeDistributor(address(usdc), address(staking), treasury);
@@ -41,7 +41,7 @@ contract RWAVaultInvariants is Test {
 
         vault = new RWAVault(
             IERC20(address(usdc)),
-            IMorphoAdapter(address(adapter)),
+            IYieldAdapter(address(adapter)),
             distributor,
             owner,
             guardian,
@@ -50,16 +50,16 @@ contract RWAVaultInvariants is Test {
             100_000e6 // 100K TVL cap
         );
 
-        handler = new RWAVaultHandler(vault, usdc, steakhouse);
+        handler = new RWAVaultHandler(vault, usdc, mockVault);
 
         // Target only the handler for fuzzer calls
         targetContract(address(handler));
     }
 
-    /// @notice totalAssets matches adapter's view of steakhouse shares held by vault
+    /// @notice totalAssets matches adapter's view of mockVault shares held by vault
     function invariant_totalAssetsConsistent() public view {
-        address steakhouseVault = adapter.STEAKHOUSE_VAULT();
-        uint256 steakShares = IERC20(steakhouseVault).balanceOf(address(vault));
+        address mockVaultVault = adapter.YIELD_VAULT();
+        uint256 steakShares = IERC20(mockVaultVault).balanceOf(address(vault));
 
         if (steakShares == 0) {
             assertEq(vault.totalAssets(), 0);

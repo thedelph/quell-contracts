@@ -1,6 +1,6 @@
 # Quell Protocol
 
-ERC-4626 USDC yield vault on Base, routing deposits to the Steakhouse USDC MetaMorpho vault for RWA-backed yield.
+ERC-4626 USDC yield vault on Arbitrum, routing deposits to Spark sUSDC for RWA-backed yield via the Sky Savings Rate.
 
 **Live:** [app.quell.fi](https://app.quell.fi) | **Website:** [quell.fi](https://quell.fi)
 
@@ -13,7 +13,8 @@ User deposits USDC
    RWAVault (ERC-4626)
    Issues rvUSDC shares
         |
-        +---> Steakhouse MetaMorpho Vault ---> RWA yield (~3-4% APY)
+        +---> Spark sUSDC Vault ---> RWA yield (~4.5% APY)
+        |     (Sky Savings Rate: US Treasury bills + institutional lending)
         |
         +---> Fee harvest (on each user operation)
                     |
@@ -40,23 +41,24 @@ User deposits USDC
 | `GovStaking.sol` | Stake QUELL, earn USDC. 7-day unstake cooldown. 1e30 precision accumulator. | ~145 |
 | `FeeDistributor.sol` | Permissionless 60/40 USDC split between stakers and treasury. | ~58 |
 | `QUELLToken.sol` | Fixed 100M supply ERC-20. No mint post-deploy. 75M treasury / 25M vesting. | ~23 |
-| `MorphoAdapter.sol` | Stateless read-only interface to Steakhouse vault. | ~29 |
-| `IMorphoAdapter.sol` | Adapter interface. | ~22 |
-| `MockMorphoAdapter.sol` | Test-only. Time-based ~3% APY simulation. | ~35 |
+| `SparkAdapter.sol` | Stateless read-only interface to Spark sUSDC vault. | ~29 |
+| `IYieldAdapter.sol` | Adapter interface (generic, supports strategy rotation). | ~22 |
+| `MockYieldAdapter.sol` | Test-only. Time-based ~3% APY simulation. | ~35 |
 
-## Mainnet Addresses (Base)
+## Mainnet Addresses (Arbitrum One)
 
 | Contract | Address |
 |---|---|
-| RWAVault (rvUSDC) | [`0xd85A4301706124699CbA8d0b59E5ED635360868b`](https://basescan.org/address/0xd85A4301706124699CbA8d0b59E5ED635360868b) |
-| MorphoAdapter | [`0xc804F2F92Fd45d7A5bd8cf49DBC795EEd874328C`](https://basescan.org/address/0xc804F2F92Fd45d7A5bd8cf49DBC795EEd874328C) |
-| QUELLToken | [`0xab1F67524ab5248E06ac1992478959E0A7503399`](https://basescan.org/address/0xab1F67524ab5248E06ac1992478959E0A7503399) |
-| GovStaking | [`0x30A7e517799e409d5E68AAf0b34543b9c8BB1aC7`](https://basescan.org/address/0x30A7e517799e409d5E68AAf0b34543b9c8BB1aC7) |
-| FeeDistributor | [`0xeb39D2C50Fb70235120a853CdDFeD5325bc3D3d7`](https://basescan.org/address/0xeb39D2C50Fb70235120a853CdDFeD5325bc3D3d7) |
+| RWAVault (rvUSDC) | [`0x25cf6D8BacCFbF66DC0567844182F063b8BD0051`](https://arbiscan.io/address/0x25cf6D8BacCFbF66DC0567844182F063b8BD0051) |
+| SparkAdapter | [`0xfec4ff82F8fb2d33cb7db41fd25ca92EC1A9d0E5`](https://arbiscan.io/address/0xfec4ff82F8fb2d33cb7db41fd25ca92EC1A9d0E5) |
+| QUELLToken | [`0xC7c338fDE3A335dfB5cE1124329540d7F0A8ceED`](https://arbiscan.io/address/0xC7c338fDE3A335dfB5cE1124329540d7F0A8ceED) |
+| GovStaking | [`0x670d070A38Db80a53cdC55DB4d73C275aD7B1bF6`](https://arbiscan.io/address/0x670d070A38Db80a53cdC55DB4d73C275aD7B1bF6) |
+| FeeDistributor | [`0xCe0044b508ED62B424Aa09E96ec39d5CDC3BdF43`](https://arbiscan.io/address/0xCe0044b508ED62B424Aa09E96ec39d5CDC3BdF43) |
+| TimelockController | [`0x0f1760cf5BBdbB9A5Be1122a13179542d6DA395A`](https://arbiscan.io/address/0x0f1760cf5BBdbB9A5Be1122a13179542d6DA395A) |
 
 **External dependencies:**
-- USDC (Base): `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913`
-- Steakhouse USDC MetaMorpho Vault: `0xbeeF010f9cb27031ad51e3333f9aF9C6B1228183`
+- USDC (Arbitrum): `0xaf88d065e77c8cC2239327C5EDb3A432268e5831`
+- Spark sUSDC Vault: `0x940098b108fB7D0a7E374f6eDED7760787464609`
 
 ## Build & Test
 
@@ -100,6 +102,7 @@ remappings = ["@openzeppelin/=lib/openzeppelin-contracts/"]
 - Emergency pause mechanism (no owner sweep)
 - $100K TVL cap as pre-audit precaution
 - Dead shares for ERC-4626 inflation attack protection
+- Professional audit: Nethermind (scheduled)
 
 See [`docs/KNOWN-ISSUES.md`](docs/KNOWN-ISSUES.md) for intentional design decisions, edge cases, and trust assumptions.
 
@@ -110,16 +113,12 @@ See [`docs/KNOWN-ISSUES.md`](docs/KNOWN-ISSUES.md) for intentional design decisi
 cp .env.example .env
 # Fill in your values, then:
 
-# Testnet (Base Sepolia)
+# Arbitrum One
 source .env
-forge script script/DeployTestnet.s.sol --rpc-url $BASE_SEPOLIA_RPC --broadcast --verify
-
-# Mainnet (Base)
-source .env
-forge script script/Deploy.s.sol --rpc-url $BASE_MAINNET_RPC --broadcast --verify
+forge script script/Deploy.s.sol --rpc-url $ARBITRUM_RPC --broadcast --slow --skip-simulation --verify
 ```
 
-**Deployment order is critical:** VestingWallet -> QUELLToken -> GovStaking -> FeeDistributor -> Link staking<->distributor -> MorphoAdapter -> TimelockController -> RWAVault -> Set strategy description -> Transfer vault ownership to timelock
+**Deployment order is critical:** VestingWallet -> QUELLToken -> GovStaking -> FeeDistributor -> Link staking<->distributor -> SparkAdapter -> TimelockController -> RWAVault -> Set strategy description -> Transfer vault ownership to timelock
 
 ## License
 

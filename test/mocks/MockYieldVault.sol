@@ -10,10 +10,10 @@ interface IMockUSDCMintable {
     function mint(address to, uint256 amount) external;
 }
 
-/// @title MockSteakhouseVault — Minimal ERC-4626 with time-based appreciation
+/// @title MockYieldVault -- Minimal ERC-4626 with time-based appreciation
 /// @notice Simulates ~3% APY for testing. Materializes yield by minting USDC so
 ///         totalAssets() always matches actual balance (no phantom appreciation).
-contract MockSteakhouseVault is ERC4626 {
+contract MockYieldVault is ERC4626 {
     using Math for uint256;
 
     uint256 public constant APY_BPS = 300;
@@ -22,11 +22,11 @@ contract MockSteakhouseVault is ERC4626 {
 
     uint256 public lastYieldUpdate;
 
-    constructor(IERC20 asset_) ERC4626(asset_) ERC20("Mock Steakhouse USDC", "steakUSDC") {
+    constructor(IERC20 asset_) ERC4626(asset_) ERC20("Mock Yield USDC", "mockUSDC") {
         lastYieldUpdate = block.timestamp;
     }
 
-    /// @notice 18-decimal shares like real Steakhouse vault (USDC 6 + offset 12 = 18)
+    /// @notice 18-decimal shares (USDC 6 + offset 12 = 18)
     function _decimalsOffset() internal pure override returns (uint8) {
         return 12;
     }

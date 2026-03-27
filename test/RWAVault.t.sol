@@ -6,18 +6,18 @@ import {RWAVault} from "../src/RWAVault.sol";
 import {FeeDistributor} from "../src/FeeDistributor.sol";
 import {GovStaking} from "../src/GovStaking.sol";
 import {QUELLToken} from "../src/QUELLToken.sol";
-import {MockMorphoAdapter} from "../src/adapters/MockMorphoAdapter.sol";
-import {IMorphoAdapter} from "../src/adapters/IMorphoAdapter.sol";
+import {MockYieldAdapter} from "../src/adapters/MockYieldAdapter.sol";
+import {IYieldAdapter} from "../src/adapters/IYieldAdapter.sol";
 import {MockUSDC} from "./mocks/MockUSDC.sol";
-import {MockSteakhouseVault} from "./mocks/MockSteakhouseVault.sol";
+import {MockYieldVault} from "./mocks/MockYieldVault.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IERC4626} from "@openzeppelin/contracts/interfaces/IERC4626.sol";
 
 contract RWAVaultTest is Test {
     RWAVault public vault;
     MockUSDC public usdc;
-    MockSteakhouseVault public steakhouse;
-    MockMorphoAdapter public adapter;
+    MockYieldVault public mockVault;
+    MockYieldAdapter public adapter;
     FeeDistributor public distributor;
     GovStaking public staking;
     QUELLToken public gov;
@@ -35,8 +35,8 @@ contract RWAVaultTest is Test {
 
     function setUp() public {
         usdc = new MockUSDC();
-        steakhouse = new MockSteakhouseVault(IERC20(address(usdc)));
-        adapter = new MockMorphoAdapter(address(steakhouse));
+        mockVault = new MockYieldVault(IERC20(address(usdc)));
+        adapter = new MockYieldAdapter(address(mockVault));
         gov = new QUELLToken(treasury, vestingWallet);
         staking = new GovStaking(address(gov), address(usdc), owner);
         distributor = new FeeDistributor(address(usdc), address(staking), treasury);
@@ -47,7 +47,7 @@ contract RWAVaultTest is Test {
 
         vault = new RWAVault(
             IERC20(address(usdc)),
-            IMorphoAdapter(address(adapter)),
+            IYieldAdapter(address(adapter)),
             distributor,
             owner,
             guardian,
@@ -67,8 +67,8 @@ contract RWAVaultTest is Test {
         vm.stopPrank();
     }
 
-    function _prefundSteakhouse(uint256 amount) internal {
-        usdc.mint(address(steakhouse), amount);
+    function _prefundYieldVault(uint256 amount) internal {
+        usdc.mint(address(mockVault), amount);
     }
 
     // --- Unit Tests ---
@@ -84,7 +84,7 @@ contract RWAVaultTest is Test {
         assertGt(shares, 0);
         assertGt(vault.balanceOf(alice), 0);
         // Steakhouse should hold USDC
-        assertGt(usdc.balanceOf(address(steakhouse)), 0);
+        assertGt(usdc.balanceOf(address(mockVault)), 0);
     }
 
     function testDeadSharesOnFirstDeposit() public {
@@ -97,7 +97,7 @@ contract RWAVaultTest is Test {
         _fundAndDeposit(alice, 1e6); // 1 USDC
 
         // Attacker donates USDC directly to steakhouse to inflate share price
-        usdc.mint(address(steakhouse), 1000e6);
+        usdc.mint(address(mockVault), 1000e6);
 
         // Alice deposits more - should still get fair shares
         uint256 bobShares = _fundAndDeposit(bob, 1000e6);
@@ -122,7 +122,7 @@ contract RWAVaultTest is Test {
         vm.warp(block.timestamp + 2 hours);
 
         // Pre-fund steakhouse for withdrawal
-        _prefundSteakhouse(100e6);
+        _prefundYieldVault(100e6);
 
         // Trigger harvest via another deposit
         uint256 distributorBefore = usdc.balanceOf(address(distributor));
@@ -139,7 +139,7 @@ contract RWAVaultTest is Test {
         vm.warp(block.timestamp + 30 days);
 
         // Pre-fund steakhouse for fee withdrawal
-        _prefundSteakhouse(1000e6);
+        _prefundYieldVault(1000e6);
 
         uint256 hwmBefore = vault.highWaterMark();
         uint256 distributorBefore = usdc.balanceOf(address(distributor));
@@ -156,7 +156,7 @@ contract RWAVaultTest is Test {
 
         // Warp just past min harvest interval — 2 hours has tiny yield
         vm.warp(block.timestamp + 2 hours);
-        _prefundSteakhouse(100e6);
+        _prefundYieldVault(100e6);
 
         // Record HWM and fee state before harvest
         uint256 hwmBefore = vault.highWaterMark();
@@ -210,7 +210,7 @@ contract RWAVaultTest is Test {
         _fundAndDeposit(alice, 1000e6);
 
         // Pre-fund steakhouse for redemption
-        _prefundSteakhouse(1000e6);
+        _prefundYieldVault(1000e6);
 
         vm.prank(guardian);
         vault.setEmergencyMode();
@@ -257,19 +257,19 @@ contract RWAVaultTest is Test {
     }
 
     function testSetAdapterRevokesApproval() public {
-        address oldVault = adapter.STEAKHOUSE_VAULT();
+        address oldVault = adapter.YIELD_VAULT();
 
         // Deploy new adapter
-        MockSteakhouseVault newSteakhouse = new MockSteakhouseVault(IERC20(address(usdc)));
-        MockMorphoAdapter newAdapter = new MockMorphoAdapter(address(newSteakhouse));
+        MockYieldVault newMockVault = new MockYieldVault(IERC20(address(usdc)));
+        MockYieldAdapter newAdapter = new MockYieldAdapter(address(newMockVault));
 
         vm.prank(owner);
-        vault.setAdapter(IMorphoAdapter(address(newAdapter)));
+        vault.setAdapter(IYieldAdapter(address(newAdapter)));
 
         // Old vault allowance should be 0
         assertEq(usdc.allowance(address(vault), oldVault), 0);
         // New vault should have max allowance
-        assertEq(usdc.allowance(address(vault), address(newSteakhouse)), type(uint256).max);
+        assertEq(usdc.allowance(address(vault), address(newMockVault)), type(uint256).max);
     }
 
     function testDepositWithSlippage() public {
@@ -286,7 +286,7 @@ contract RWAVaultTest is Test {
 
     function testRedeemWithSlippage() public {
         _fundAndDeposit(alice, 1000e6);
-        _prefundSteakhouse(1000e6);
+        _prefundYieldVault(1000e6);
 
         uint256 shares = vault.balanceOf(alice);
         uint256 expectedAssets = vault.previewRedeem(shares);
@@ -298,7 +298,7 @@ contract RWAVaultTest is Test {
 
     function testWithdrawEmitsActualUsdc() public {
         _fundAndDeposit(alice, 1000e6);
-        _prefundSteakhouse(1000e6);
+        _prefundYieldVault(1000e6);
 
         uint256 shares = vault.balanceOf(alice);
 
@@ -321,7 +321,7 @@ contract RWAVaultTest is Test {
     function testRedeemBasic() public {
         uint256 depositAmount = 1000e6;
         _fundAndDeposit(alice, depositAmount);
-        _prefundSteakhouse(depositAmount);
+        _prefundYieldVault(depositAmount);
 
         uint256 shares = vault.balanceOf(alice);
         assertGt(shares, 0);
@@ -349,7 +349,7 @@ contract RWAVaultTest is Test {
 
     function testRedeemWithSlippageReverts() public {
         _fundAndDeposit(alice, 1000e6);
-        _prefundSteakhouse(1000e6);
+        _prefundYieldVault(1000e6);
 
         uint256 shares = vault.balanceOf(alice);
         vm.prank(alice);
@@ -371,7 +371,7 @@ contract RWAVaultTest is Test {
         vm.expectRevert(RWAVault.FeeTooHigh.selector);
         new RWAVault(
             IERC20(address(usdc)),
-            IMorphoAdapter(address(adapter)),
+            IYieldAdapter(address(adapter)),
             distributor,
             owner,
             guardian,
@@ -383,7 +383,7 @@ contract RWAVaultTest is Test {
         vm.expectRevert(RWAVault.FeeTooHigh.selector);
         new RWAVault(
             IERC20(address(usdc)),
-            IMorphoAdapter(address(adapter)),
+            IYieldAdapter(address(adapter)),
             distributor,
             owner,
             guardian,
@@ -426,12 +426,12 @@ contract RWAVaultTest is Test {
     }
 
     function testNonOwnerCannotSetAdapter() public {
-        MockSteakhouseVault newSteakhouse = new MockSteakhouseVault(IERC20(address(usdc)));
-        MockMorphoAdapter newAdapter = new MockMorphoAdapter(address(newSteakhouse));
+        MockYieldVault newMockVault = new MockYieldVault(IERC20(address(usdc)));
+        MockYieldAdapter newAdapter = new MockYieldAdapter(address(newMockVault));
 
         vm.prank(alice);
         vm.expectRevert(abi.encodeWithSignature("OwnableUnauthorizedAccount(address)", alice));
-        vault.setAdapter(IMorphoAdapter(address(newAdapter)));
+        vault.setAdapter(IYieldAdapter(address(newAdapter)));
     }
 
     function testNonOwnerCannotSetTvlCap() public {
@@ -476,16 +476,16 @@ contract RWAVaultTest is Test {
 
     function testExcessiveRoundingReverts() public {
         _fundAndDeposit(alice, 1000e6);
-        _prefundSteakhouse(1000e6);
+        _prefundYieldVault(1000e6);
 
         uint256 shares = vault.balanceOf(alice);
         uint256 expectedAssets = vault.previewRedeem(shares);
 
         // Mock steakhouse redeem to return assets - 3 (exceeds dust tolerance of 2)
-        address steakhouseVault = adapter.STEAKHOUSE_VAULT();
+        address yieldVault = adapter.YIELD_VAULT();
         vm.mockCall(
-            steakhouseVault,
-            abi.encodeWithSelector(IERC4626(steakhouseVault).redeem.selector),
+            yieldVault,
+            abi.encodeWithSelector(IERC4626(yieldVault).redeem.selector),
             abi.encode(expectedAssets - 3)
         );
 
@@ -503,10 +503,10 @@ contract RWAVaultTest is Test {
         vm.warp(block.timestamp + 2 hours);
 
         // Mock steakhouse redeem to revert (simulating Steakhouse outage during harvest)
-        address steakhouseVault = adapter.STEAKHOUSE_VAULT();
+        address yieldVault = adapter.YIELD_VAULT();
         vm.mockCallRevert(
-            steakhouseVault,
-            abi.encodeWithSelector(IERC4626(steakhouseVault).redeem.selector),
+            yieldVault,
+            abi.encodeWithSelector(IERC4626(yieldVault).redeem.selector),
             "Steakhouse unavailable"
         );
 
@@ -520,12 +520,12 @@ contract RWAVaultTest is Test {
         // Actually the cleanest approach: use mockCallRevert with specific calldata
         // The harvest redeem uses small share amounts, the deposit uses large amounts
         // Let's use a different approach — prefund and warp, then mock revert on redeem
-        _prefundSteakhouse(100e6);
+        _prefundYieldVault(100e6);
 
         // Re-mock: make steakhouse redeem revert for any call
         vm.mockCallRevert(
-            steakhouseVault,
-            abi.encodeWithSelector(IERC4626(steakhouseVault).redeem.selector),
+            yieldVault,
+            abi.encodeWithSelector(IERC4626(yieldVault).redeem.selector),
             "Steakhouse unavailable"
         );
 
@@ -546,7 +546,7 @@ contract RWAVaultTest is Test {
 
         // Warp past min harvest interval
         vm.warp(block.timestamp + 2 hours);
-        _prefundSteakhouse(100e6);
+        _prefundYieldVault(100e6);
 
         // Mock adapter.usdcToShares to return 0 for the fee amount
         // This simulates the fee being too small to convert to steakhouse shares
@@ -570,13 +570,13 @@ contract RWAVaultTest is Test {
 
         // Warp past min harvest interval
         vm.warp(block.timestamp + 2 hours);
-        _prefundSteakhouse(100e6);
+        _prefundYieldVault(100e6);
 
         // Mock steakhouse redeem to return 0 USDC (fee harvest produces nothing)
-        address steakhouseVault = adapter.STEAKHOUSE_VAULT();
+        address yieldVault = adapter.YIELD_VAULT();
         vm.mockCall(
-            steakhouseVault,
-            abi.encodeWithSelector(IERC4626(steakhouseVault).redeem.selector),
+            yieldVault,
+            abi.encodeWithSelector(IERC4626(yieldVault).redeem.selector),
             abi.encode(uint256(0))
         );
 
@@ -613,7 +613,7 @@ contract RWAVaultTest is Test {
 
     function testRedeemWithAllowance() public {
         _fundAndDeposit(alice, 1000e6);
-        _prefundSteakhouse(1000e6);
+        _prefundYieldVault(1000e6);
 
         uint256 shares = vault.balanceOf(alice);
 
@@ -668,7 +668,7 @@ contract RWAVaultTest is Test {
         assertGt(shares, 0, "Should receive shares");
 
         // Pre-fund steakhouse AFTER deposit (for withdrawal liquidity only)
-        _prefundSteakhouse(amount);
+        _prefundYieldVault(amount);
 
         // Redeem round-trip
         vm.prank(alice);
@@ -682,11 +682,11 @@ contract RWAVaultTest is Test {
         tvl = bound(tvl, 100e6, TVL_CAP); // 100 USDC to TVL cap
         timeDelta = bound(timeDelta, 2 hours, 365 days);
 
-        _prefundSteakhouse(tvl);
+        _prefundYieldVault(tvl);
         _fundAndDeposit(alice, tvl);
 
         vm.warp(block.timestamp + timeDelta);
-        _prefundSteakhouse(tvl); // Extra funding for fee withdrawal + new deposit
+        _prefundYieldVault(tvl); // Extra funding for fee withdrawal + new deposit
 
         uint256 distributorBefore = usdc.balanceOf(address(distributor));
         _fundAndDeposit(bob, 100e6); // Trigger harvest

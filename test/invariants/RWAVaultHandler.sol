@@ -4,13 +4,13 @@ pragma solidity 0.8.24;
 import {Test} from "forge-std/Test.sol";
 import {RWAVault} from "../../src/RWAVault.sol";
 import {MockUSDC} from "../mocks/MockUSDC.sol";
-import {MockSteakhouseVault} from "../mocks/MockSteakhouseVault.sol";
+import {MockYieldVault} from "../mocks/MockYieldVault.sol";
 
 /// @title RWAVaultHandler — Bounded random actions for invariant fuzzing
 contract RWAVaultHandler is Test {
     RWAVault public vault;
     MockUSDC public usdc;
-    MockSteakhouseVault public steakhouse;
+    MockYieldVault public mockVault;
 
     address[3] public actors;
 
@@ -20,10 +20,10 @@ contract RWAVaultHandler is Test {
     uint256 public ghost_depositCount;
     uint256 public ghost_redeemCount;
 
-    constructor(RWAVault _vault, MockUSDC _usdc, MockSteakhouseVault _steakhouse) {
+    constructor(RWAVault _vault, MockUSDC _usdc, MockYieldVault _mockVault) {
         vault = _vault;
         usdc = _usdc;
-        steakhouse = _steakhouse;
+        mockVault = _mockVault;
 
         actors[0] = makeAddr("actor0");
         actors[1] = makeAddr("actor1");
