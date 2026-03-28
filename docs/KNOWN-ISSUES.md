@@ -4,9 +4,9 @@ This document describes intentional design decisions, known edge cases, and trus
 
 ## Scope
 
-**In scope:** RWAVault, GovStaking, FeeDistributor, QUELLToken, MorphoAdapter, IMorphoAdapter
+**In scope:** RWAVault, GovStaking, FeeDistributor, QUELLToken, SparkAdapter, IYieldAdapter
 
-**Out of scope:** MockMorphoAdapter (test-only, simulates ~3% APY via linear time-based pricing), all files in `test/mocks/`, OpenZeppelin v5 contracts (used unmodified via inheritance)
+**Out of scope:** MockYieldAdapter (test-only, simulates ~3% APY via linear time-based pricing), all files in `test/mocks/`, OpenZeppelin v5 contracts (used unmodified via inheritance)
 
 ---
 
@@ -24,7 +24,7 @@ On the first deposit (`totalSupply() == 0`), 1000 shares are minted to `address(
 
 USDC has 6 decimals. The vault overrides `_decimalsOffset()` to return 12, giving rvUSDC shares 18 decimals of precision. This prevents precision loss in share price calculations when the underlying asset has low decimals.
 
-`MorphoAdapter.sol:12` defines a matching `DECIMALS_OFFSET = 1e12` constant for share price conversions.
+`SparkAdapter.sol:12` defines a matching `DECIMALS_OFFSET = 1e12` constant for share price conversions.
 
 ### 1.3 Emergency Mode Is Irreversible
 
@@ -38,7 +38,7 @@ Emergency mode blocks all deposits but allows all redemptions. There is no owner
 
 **File:** `RWAVault.sol:244-253`
 
-Fee harvesting redeems Steakhouse vault shares to collect fees. This is wrapped in a try/catch so that a revert from the Steakhouse vault (e.g., temporary liquidity issue) does not block user deposits or withdrawals. If the fee harvest fails, it is silently skipped and retried on the next operation after `MIN_HARVEST_INTERVAL` (1 hour).
+Fee harvesting redeems yield vault shares to collect fees. This is wrapped in a try/catch so that a revert from the underlying yield vault (e.g., temporary liquidity issue) does not block user deposits or withdrawals. If the fee harvest fails, it is silently skipped and retried on the next operation after `MIN_HARVEST_INTERVAL` (1 hour).
 
 ### 1.5 Performance Fee Single-Division Formula
 
@@ -89,7 +89,7 @@ If `totalStaked == 0` when `distribute()` is called:
 - The staker share (60%) remains in the FeeDistributor contract
 - `GovStaking.notifyRewardAmount()` reverts with `NoStakers()` if `totalStaked == 0`, so the transfer is skipped
 
-The accumulated staker share is distributed on the next `distribute()` call after someone has staked. This requires a manual (or bot-driven) `distribute()` call — it is not automatic.
+The accumulated staker share is distributed on the next `distribute()` call after someone has staked. This requires a manual (or bot-driven) `distribute()` call -- it is not automatic.
 
 ### 2.2 Withdrawal Dust Tolerance
 
@@ -97,9 +97,9 @@ The accumulated staker share is distributed on the next `distribute()` call afte
 
 Two rounding tolerances exist on withdrawals:
 
-1. **Steakhouse share overshoot (line 190-194):** If the calculated Steakhouse shares to redeem exceed the vault's actual balance, the difference must be less than 0.01% of the redemption amount. Otherwise reverts with `ExcessiveRounding()`.
+1. **Yield vault share overshoot (line 190-194):** If the calculated yield vault shares to redeem exceed the vault's actual balance, the difference must be less than 0.01% of the redemption amount. Otherwise reverts with `ExcessiveRounding()`.
 
-2. **USDC received shortfall (line 200-201):** The actual USDC received from Steakhouse may be up to 2 wei less than the expected amount. This accounts for rounding in Steakhouse's ERC-4626 conversion. Larger discrepancies revert with `ExcessiveRounding()`.
+2. **USDC received shortfall (line 200-201):** The actual USDC received from the yield vault may be up to 2 wei less than the expected amount. This accounts for rounding in the underlying ERC-4626 conversion. Larger discrepancies revert with `ExcessiveRounding()`.
 
 ### 2.3 Slippage Pre-Check Uses minShares - 1
 
@@ -117,14 +117,16 @@ Two rounding tolerances exist on withdrawals:
 
 ## 3. Trust Assumptions
 
-### 3.1 Steakhouse Vault
+### 3.1 Underlying Yield Vault (Spark sUSDC)
 
-The protocol trusts that the Steakhouse USDC MetaMorpho vault (`0xbeeF010f9cb27031ad51e3333f9aF9C6B1228183`):
+The protocol trusts that the Spark sUSDC vault (`0x940098b108fB7D0a7E374f6eDED7760787464609`):
 - Returns accurate share price conversions
 - Honors withdrawal requests without excessive delay
 - Does not have a malicious upgrade path that could trap funds
 
-The fee harvest try/catch (Section 1.4) provides partial protection against temporary Steakhouse issues, but a permanently malicious or broken Steakhouse vault would require emergency mode and adapter migration.
+The Spark sUSDC vault is backed by the Sky Savings Rate (US Treasury bills + institutional lending). The SSR is governance-controlled by SKY token holders and can change without notice.
+
+The fee harvest try/catch (Section 1.4) provides partial protection against temporary yield vault issues, but a permanently malicious or broken vault would require emergency mode and adapter migration.
 
 ### 3.2 Guardian (EOA)
 
@@ -134,11 +136,11 @@ The guardian can immediately pause deposits and activate emergency mode without 
 
 The TimelockController (48-hour delay) currently has a single proposer/executor (the deployer). This is a centralization risk. The intent is to migrate to DAO governance post-launch. All timelocked functions have a 48-hour delay, giving users time to exit if they disagree with a proposed change.
 
-### 3.4 Max Approval to Steakhouse
+### 3.4 Max Approval to Yield Vault
 
 **File:** `RWAVault.sol:97`
 
-The constructor grants `type(uint256).max` approval of USDC to the Steakhouse vault. This is standard for vault-to-vault integrations but means the Steakhouse vault contract could theoretically transfer all USDC held by RWAVault. This risk is accepted because deposits are immediately forwarded to Steakhouse — USDC only transits through RWAVault briefly.
+The constructor grants `type(uint256).max` approval of USDC to the yield vault. This is standard for vault-to-vault integrations but means the yield vault contract could theoretically transfer all USDC held by RWAVault. This risk is accepted because deposits are immediately forwarded to the yield vault -- USDC only transits through RWAVault briefly.
 
 ---
 
@@ -146,8 +148,8 @@ The constructor grants `type(uint256).max` approval of USDC to the Steakhouse va
 
 | Limitation | Description |
 |---|---|
-| **Single chain** | Deployed on Base only. No cross-chain bridging or interoperability. |
-| **Single strategy** | All deposits route to Steakhouse MetaMorpho. No multi-strategy diversification. |
+| **Single chain** | Deployed on Arbitrum One. No cross-chain bridging or interoperability. |
+| **Single strategy** | All deposits route to Spark sUSDC via the adapter. No multi-strategy diversification. Adapter is swappable via timelock. |
 | **No flash loan protection** | The vault does not implement flash loan guards. ERC-4626 share price manipulation via flash loans is mitigated by dead shares and the decimal offset. |
 | **Fee harvest interval** | Fees are only harvested on user operations (deposit/withdraw/redeem), minimum once per hour. Accrued fees between operations are not lost but are delayed. |
 | **No partial unstake cooldown** | A second `requestUnstake()` resets the cooldown timer for the entire pending amount. Users must wait a full 7 days from the last request. |
@@ -155,27 +157,29 @@ The constructor grants `type(uint256).max` approval of USDC to the Steakhouse va
 
 ---
 
-## 5. Deployment Configuration (Mainnet)
+## 5. Deployment Configuration (Arbitrum One)
 
 | Parameter | Value |
 |---|---|
-| Management fee | 200 bps (2%) |
-| Performance fee | 2000 bps (20%) |
+| Management fee | 20 bps (0.2%) |
+| Performance fee | 1000 bps (10%) |
 | TVL cap | 100,000 USDC |
 | Timelock delay | 48 hours |
 | Unstake cooldown | 7 days |
 | Min harvest interval | 1 hour |
-| USDC | `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` |
-| Steakhouse vault | `0xbeeF010f9cb27031ad51e3333f9aF9C6B1228183` |
+| USDC | `0xaf88d065e77c8cC2239327C5EDb3A432268e5831` |
+| Spark sUSDC vault | `0x940098b108fB7D0a7E374f6eDED7760787464609` |
 
 ---
 
-## 6. Mainnet Contract Addresses
+## 6. Contract Addresses (Arbitrum One)
 
 | Contract | Address |
 |---|---|
-| RWAVault (rvUSDC) | `0xd85A4301706124699CbA8d0b59E5ED635360868b` |
-| MorphoAdapter | `0xc804F2F92Fd45d7A5bd8cf49DBC795EEd874328C` |
-| QUELLToken | `0xab1F67524ab5248E06ac1992478959E0A7503399` |
-| GovStaking | `0x30A7e517799e409d5E68AAf0b34543b9c8BB1aC7` |
-| FeeDistributor | `0xeb39D2C50Fb70235120a853CdDFeD5325bc3D3d7` |
+| RWAVault (rvUSDC) | `0x25cf6D8BacCFbF66DC0567844182F063b8BD0051` |
+| SparkAdapter | `0xfec4ff82F8fb2d33cb7db41fd25ca92EC1A9d0E5` |
+| QUELLToken | `0xC7c338fDE3A335dfB5cE1124329540d7F0A8ceED` |
+| GovStaking | `0x670d070A38Db80a53cdC55DB4d73C275aD7B1bF6` |
+| FeeDistributor | `0xCe0044b508ED62B424Aa09E96ec39d5CDC3BdF43` |
+| TimelockController | `0x0f1760cf5BBdbB9A5Be1122a13179542d6DA395A` |
+| VestingWallet | `0x38956d4e0C89d650D4d7129Fc068b17abc99F740` |
