@@ -219,8 +219,8 @@ contract FullFlowTest is Test {
         assertEq(vault.owner(), address(timelock));
 
         // Deploy new adapter
-        MockYieldVault newSteakhouse = new MockYieldVault(IERC20(address(usdc)));
-        DelegatingMockAdapter newAdapter = new DelegatingMockAdapter(address(newSteakhouse));
+        MockYieldVault newMockVault = new MockYieldVault(IERC20(address(usdc)));
+        DelegatingMockAdapter newAdapter = new DelegatingMockAdapter(address(newMockVault));
 
         // Schedule setAdapter via timelock
         bytes memory data = abi.encodeWithSelector(

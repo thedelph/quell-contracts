@@ -83,7 +83,7 @@ contract RWAVaultTest is Test {
         // Shares should be in 18-decimal range (1000e6 * 1e12 = 1000e18 at 1:1)
         assertGt(shares, 0);
         assertGt(vault.balanceOf(alice), 0);
-        // Steakhouse should hold USDC
+        // Yield vault should hold USDC
         assertGt(usdc.balanceOf(address(mockVault)), 0);
     }
 
@@ -496,18 +496,18 @@ contract RWAVaultTest is Test {
         vm.clearMockedCalls();
     }
 
-    function testHarvestSteakhouseRevertDoesNotBlock() public {
+    function testHarvestYieldVaultRevertDoesNotBlock() public {
         _fundAndDeposit(alice, 10_000e6);
 
         // Warp past min harvest interval to trigger fee harvest
         vm.warp(block.timestamp + 2 hours);
 
-        // Mock steakhouse redeem to revert (simulating Steakhouse outage during harvest)
+        // Mock steakhouse redeem to revert (simulating Yield vault outage during harvest)
         address yieldVault = adapter.YIELD_VAULT();
         vm.mockCallRevert(
             yieldVault,
             abi.encodeWithSelector(IERC4626(yieldVault).redeem.selector),
-            "Steakhouse unavailable"
+            "Yield vault unavailable"
         );
 
         // Deposit should still succeed despite harvest failure (try/catch)
@@ -526,7 +526,7 @@ contract RWAVaultTest is Test {
         vm.mockCallRevert(
             yieldVault,
             abi.encodeWithSelector(IERC4626(yieldVault).redeem.selector),
-            "Steakhouse unavailable"
+            "Yield vault unavailable"
         );
 
         // The deposit itself calls steakhouse.deposit (not redeem), so only the harvest
