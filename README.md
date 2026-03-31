@@ -49,11 +49,11 @@ User deposits USDC
 
 | Contract | Address |
 |---|---|
-| RWAVault (rvUSDC) | [`0x25cf6D8BacCFbF66DC0567844182F063b8BD0051`](https://arbiscan.io/address/0x25cf6D8BacCFbF66DC0567844182F063b8BD0051) |
+| RWAVault (rvUSDC) | [`0x82bDeB9239d33AAE4b8c38C0C0ef3B088b0Fc791`](https://arbiscan.io/address/0x82bDeB9239d33AAE4b8c38C0C0ef3B088b0Fc791) |
 | SparkAdapter | [`0xfec4ff82F8fb2d33cb7db41fd25ca92EC1A9d0E5`](https://arbiscan.io/address/0xfec4ff82F8fb2d33cb7db41fd25ca92EC1A9d0E5) |
 | QUELLToken | [`0xC7c338fDE3A335dfB5cE1124329540d7F0A8ceED`](https://arbiscan.io/address/0xC7c338fDE3A335dfB5cE1124329540d7F0A8ceED) |
 | GovStaking | [`0x670d070A38Db80a53cdC55DB4d73C275aD7B1bF6`](https://arbiscan.io/address/0x670d070A38Db80a53cdC55DB4d73C275aD7B1bF6) |
-| FeeDistributor | [`0xCe0044b508ED62B424Aa09E96ec39d5CDC3BdF43`](https://arbiscan.io/address/0xCe0044b508ED62B424Aa09E96ec39d5CDC3BdF43) |
+| FeeDistributor | [`0xa4EdfFD99A45A358F0Fa6D8C61ebeCa6C24940c1`](https://arbiscan.io/address/0xa4EdfFD99A45A358F0Fa6D8C61ebeCa6C24940c1) |
 | TimelockController | [`0x0f1760cf5BBdbB9A5Be1122a13179542d6DA395A`](https://arbiscan.io/address/0x0f1760cf5BBdbB9A5Be1122a13179542d6DA395A) |
 
 **External dependencies:**

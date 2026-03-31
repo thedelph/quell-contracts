@@ -19,6 +19,9 @@ contract FeeDistributor {
     uint256 public constant BPS_DENOMINATOR = 10_000;
     uint256 public constant MIN_DISTRIBUTE_AMOUNT = 1e6;
 
+    /// @notice USDC held for stakers when no one is staked
+    uint256 public heldForStakers;
+
     event Distributed(uint256 stakerAmount, uint256 treasuryAmount);
     event HeldForStakers(uint256 amount);
 
@@ -34,24 +37,31 @@ contract FeeDistributor {
     }
 
     /// @notice Distribute all USDC held by this contract. Permissionless.
+    /// @dev Previously held staker funds are sent entirely to stakers, not re-split
     function distribute() external {
         uint256 balance = USDC.balanceOf(address(this));
         if (balance < MIN_DISTRIBUTE_AMOUNT) revert InsufficientFees(balance);
 
-        uint256 stakerAmount = (balance * STAKER_SHARE_BPS) / BPS_DENOMINATOR;
-        uint256 treasuryAmount = balance - stakerAmount;
+        uint256 newFees = balance - heldForStakers;
+        uint256 newStakerAmount = (newFees * STAKER_SHARE_BPS) / BPS_DENOMINATOR;
+        uint256 treasuryAmount = newFees - newStakerAmount;
+        uint256 totalStakerAmount = newStakerAmount + heldForStakers;
 
-        // Treasury always gets their 40%
-        USDC.safeTransfer(TREASURY, treasuryAmount);
+        // Treasury gets 40% of new fees only
+        if (treasuryAmount > 0) {
+            USDC.safeTransfer(TREASURY, treasuryAmount);
+        }
 
         if (STAKING.totalStaked() > 0) {
             // Transfer to staking and notify
-            USDC.safeTransfer(address(STAKING), stakerAmount);
-            STAKING.notifyRewardAmount(stakerAmount);
-            emit Distributed(stakerAmount, treasuryAmount);
+            heldForStakers = 0;
+            USDC.safeTransfer(address(STAKING), totalStakerAmount);
+            STAKING.notifyRewardAmount(totalStakerAmount);
+            emit Distributed(totalStakerAmount, treasuryAmount);
         } else {
             // Hold staker share in contract for later distribution
-            emit HeldForStakers(stakerAmount);
+            heldForStakers = totalStakerAmount;
+            emit HeldForStakers(totalStakerAmount);
         }
     }
 }

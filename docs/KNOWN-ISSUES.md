@@ -36,9 +36,9 @@ Emergency mode blocks all deposits but allows all redemptions. There is no owner
 
 ### 1.4 Fee Harvest Try/Catch
 
-**File:** `RWAVault.sol:244-253`
+**File:** `RWAVault.sol:256-268`
 
-Fee harvesting redeems yield vault shares to collect fees. This is wrapped in a try/catch so that a revert from the underlying yield vault (e.g., temporary liquidity issue) does not block user deposits or withdrawals. If the fee harvest fails, it is silently skipped and retried on the next operation after `MIN_HARVEST_INTERVAL` (1 hour).
+Fee harvesting redeems yield vault shares to collect fees. This is wrapped in a try/catch so that a revert from the underlying yield vault (e.g., temporary liquidity issue) does not block user deposits or withdrawals. If the fee harvest fails, it is silently skipped and retried on the next operation after `MIN_HARVEST_INTERVAL` (1 hour). The `highWaterMark` and `lastFeeHarvest` state updates are only committed inside the try block's success path, ensuring no permanent fee loss on failed redemptions.
 
 ### 1.5 Performance Fee Single-Division Formula
 
@@ -82,14 +82,14 @@ This prevents precision loss when distributing small USDC amounts (6 decimals) a
 
 ### 2.1 Zero Stakers: Fees Held in FeeDistributor
 
-**File:** `FeeDistributor.sol:47-55`, `GovStaking.sol:124`
+**File:** `FeeDistributor.sol:47-59`, `GovStaking.sol:124`
 
 If `totalStaked == 0` when `distribute()` is called:
-- Treasury still receives their 40% immediately
-- The staker share (60%) remains in the FeeDistributor contract
+- Treasury receives their 40% of new fees only
+- The staker share (60%) is tracked in `heldForStakers` and remains in the FeeDistributor contract
 - `GovStaking.notifyRewardAmount()` reverts with `NoStakers()` if `totalStaked == 0`, so the transfer is skipped
 
-The accumulated staker share is distributed on the next `distribute()` call after someone has staked. This requires a manual (or bot-driven) `distribute()` call -- it is not automatic.
+When `distribute()` is later called with active stakers, the held amount is sent entirely to stakers without being re-split. New fees arriving since the last distribution are split 60/40 as normal. This requires a manual (or bot-driven) `distribute()` call -- it is not automatic.
 
 ### 2.2 Withdrawal Dust Tolerance
 
@@ -109,9 +109,9 @@ Two rounding tolerances exist on withdrawals:
 
 ### 2.4 Double Fee Harvest on Redeem/Withdraw
 
-**File:** `RWAVault.sol:155-177`
+**File:** `RWAVault.sol:163-189`
 
-`redeem()` and `withdraw()` call `_harvestFees()` before delegating to `super.redeem()`/`super.withdraw()`, which eventually calls `_withdraw()` which also calls `_harvestFees()`. The second call is a no-op due to `MIN_HARVEST_INTERVAL` (line 212), but it is intentionally left in for safety in case `_withdraw()` is called directly.
+All four public entry points (`deposit()`, `mint()`, `redeem()`, `withdraw()`) call `_harvestFees()` before delegating to their `super` implementations. This ensures share/asset calculations use post-harvest `totalAssets()`. The `_deposit()` and `_withdraw()` internal overrides also call `_harvestFees()`, but the second call is a no-op due to `MIN_HARVEST_INTERVAL`, intentionally left for safety in case the internals are called directly.
 
 ---
 
@@ -176,10 +176,10 @@ The constructor grants `type(uint256).max` approval of USDC to the yield vault. 
 
 | Contract | Address |
 |---|---|
-| RWAVault (rvUSDC) | `0x25cf6D8BacCFbF66DC0567844182F063b8BD0051` |
+| RWAVault (rvUSDC) | `0x82bDeB9239d33AAE4b8c38C0C0ef3B088b0Fc791` |
 | SparkAdapter | `0xfec4ff82F8fb2d33cb7db41fd25ca92EC1A9d0E5` |
 | QUELLToken | `0xC7c338fDE3A335dfB5cE1124329540d7F0A8ceED` |
 | GovStaking | `0x670d070A38Db80a53cdC55DB4d73C275aD7B1bF6` |
-| FeeDistributor | `0xCe0044b508ED62B424Aa09E96ec39d5CDC3BdF43` |
+| FeeDistributor | `0xa4EdfFD99A45A358F0Fa6D8C61ebeCa6C24940c1` |
 | TimelockController | `0x0f1760cf5BBdbB9A5Be1122a13179542d6DA395A` |
 | VestingWallet | `0x38956d4e0C89d650D4d7129Fc068b17abc99F740` |

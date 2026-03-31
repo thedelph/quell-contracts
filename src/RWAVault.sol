@@ -119,7 +119,9 @@ contract RWAVault is ERC4626, Ownable2Step {
 
     function maxMint(address) public view override returns (uint256) {
         if (paused || emergencyMode) return 0;
-        return type(uint256).max;
+        uint256 maxAssets = maxDeposit(address(0));
+        if (maxAssets == 0) return 0;
+        return previewDeposit(maxAssets);
     }
 
     function maxRedeem(address owner_) public view override returns (uint256) {
@@ -148,6 +150,19 @@ contract RWAVault is ERC4626, Ownable2Step {
         _mint(receiver, shares);
 
         emit Deposit(caller, receiver, assets, shares);
+    }
+
+    /// @notice Override deposit to harvest fees before share calculation
+    /// @dev Ensures previewDeposit uses post-harvest totalAssets, matching redeem/withdraw pattern
+    function deposit(uint256 assets, address receiver) public override returns (uint256) {
+        _harvestFees();
+        return super.deposit(assets, receiver);
+    }
+
+    /// @notice Override mint to harvest fees before asset calculation
+    function mint(uint256 shares, address receiver) public override returns (uint256) {
+        _harvestFees();
+        return super.mint(shares, receiver);
     }
 
     /// @notice Override redeem to harvest fees before ERC-4626 preview calculation
@@ -216,7 +231,6 @@ contract RWAVault is ERC4626, Ownable2Step {
         if (currentAssets == 0 || supply == 0) return;
 
         uint256 timeDelta = block.timestamp - lastFeeHarvest;
-        lastFeeHarvest = block.timestamp;
 
         uint256 totalFee = 0;
 
@@ -226,17 +240,19 @@ contract RWAVault is ERC4626, Ownable2Step {
 
         // Performance fee (only above high water mark)
         uint256 currentPPS = (currentAssets * 1e30) / supply;
+        uint256 newHighWaterMark = highWaterMark;
         if (currentPPS > highWaterMark) {
             uint256 yieldSinceHWM = currentPPS - highWaterMark;
             uint256 perfFee = (yieldSinceHWM * supply * performanceFeeBps) / (1e30 * BPS_DENOMINATOR);
             totalFee += perfFee;
-            highWaterMark = currentPPS;
+            newHighWaterMark = currentPPS;
         }
 
         if (totalFee == 0) return;
 
         // Redeem vaultShares worth totalFee and send to FeeDistributor
         // Wrapped in try/catch so a yield vault revert doesn't block user deposits/withdrawals
+        // State updates (lastFeeHarvest, highWaterMark) only committed on success
         address yieldVault = adapter.YIELD_VAULT();
         uint256 vaultSharesToRedeem = adapter.usdcToShares(totalFee);
         if (vaultSharesToRedeem == 0) return;
@@ -245,6 +261,8 @@ contract RWAVault is ERC4626, Ownable2Step {
             vaultSharesToRedeem, address(this), address(this)
         ) returns (uint256 feeUsdc) {
             if (feeUsdc > 0) {
+                lastFeeHarvest = block.timestamp;
+                highWaterMark = newHighWaterMark;
                 IERC20(asset()).safeTransfer(address(feeDistributor), feeUsdc);
                 emit FeesHarvested(mgmtFee, totalFee - mgmtFee);
             }
@@ -311,9 +329,11 @@ contract RWAVault is ERC4626, Ownable2Step {
     }
 
     /// @notice Update fee parameters
+    /// @dev Harvests accrued fees at old rates before applying new rates
     function setFees(uint256 _managementFeeBps, uint256 _performanceFeeBps) external onlyOwner {
         if (_managementFeeBps > MAX_MANAGEMENT_FEE_BPS) revert FeeTooHigh();
         if (_performanceFeeBps > MAX_PERFORMANCE_FEE_BPS) revert FeeTooHigh();
+        _harvestFees();
         managementFeeBps = _managementFeeBps;
         performanceFeeBps = _performanceFeeBps;
         emit FeesUpdated(_managementFeeBps, _performanceFeeBps);
