@@ -65,7 +65,10 @@ contract MockYieldVault is ERC4626 {
         super._deposit(caller, receiver, assets, shares);
     }
 
-    function _withdraw(address caller, address receiver, address owner_, uint256 assets, uint256 shares) internal override {
+    function _withdraw(address caller, address receiver, address owner_, uint256 assets, uint256 shares)
+        internal
+        override
+    {
         _accrueYield();
         super._withdraw(caller, receiver, owner_, assets, shares);
     }

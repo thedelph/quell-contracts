@@ -14,9 +14,9 @@ import {IYieldAdapter} from "../src/adapters/IYieldAdapter.sol";
 contract RedeployVault is Script {
     address constant USDC = 0xaf88d065e77c8cC2239327C5EDb3A432268e5831;
 
-    uint256 constant MANAGEMENT_FEE_BPS = 20;     // 0.2%
-    uint256 constant PERFORMANCE_FEE_BPS = 1000;   // 10%
-    uint256 constant TVL_CAP = 100_000e6;           // 100K USDC
+    uint256 constant MANAGEMENT_FEE_BPS = 20; // 0.2%
+    uint256 constant PERFORMANCE_FEE_BPS = 1000; // 10%
+    uint256 constant TVL_CAP = 100_000e6; // 100K USDC
 
     function run() external {
         uint256 deployerPk = vm.envUint("PRIVATE_KEY");
@@ -57,9 +57,7 @@ contract RedeployVault is Script {
         console.log("New RWAVault:", address(vault));
 
         // Set strategy description
-        vault.setStrategyDescription(
-            "Spark sUSDC Vault - RWA-backed yield via Sky Savings Rate on Arbitrum"
-        );
+        vault.setStrategyDescription("Spark sUSDC Vault - RWA-backed yield via Sky Savings Rate on Arbitrum");
 
         // Transfer ownership to existing timelock (two-step)
         vault.transferOwnership(timelockAddr);

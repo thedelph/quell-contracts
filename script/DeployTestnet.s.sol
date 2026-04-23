@@ -41,9 +41,9 @@ contract DeployTestnet is Script {
 
         // --- Step 1: VestingWallet (4yr vest, 1yr cliff) ---
         VestingWallet vestingWallet = new VestingWallet(
-            deployer,                          // beneficiary
+            deployer, // beneficiary
             uint64(block.timestamp + 365 days), // start (after 1yr cliff)
-            uint64(3 * 365 days)               // duration (remaining 3yr)
+            uint64(3 * 365 days) // duration (remaining 3yr)
         );
         console.log("VestingWallet:", address(vestingWallet));
 
@@ -82,18 +82,16 @@ contract DeployTestnet is Script {
             IERC20(address(usdc)),
             IYieldAdapter(address(adapter)),
             distributor,
-            deployer,              // owner (transferred to timelock below)
-            deployer,              // guardian (deployer for testnet)
-            20,                    // 0.2% management fee
-            1000,                  // 10% performance fee
-            100_000e6              // 100K USDC TVL cap
+            deployer, // owner (transferred to timelock below)
+            deployer, // guardian (deployer for testnet)
+            20, // 0.2% management fee
+            1000, // 10% performance fee
+            100_000e6 // 100K USDC TVL cap
         );
         console.log("RWAVault:", address(vault));
 
         // --- Step 9: Set strategy description ---
-        vault.setStrategyDescription(
-            "Spark sUSDC Vault - RWA-backed yield via Sky Savings Rate (TESTNET)"
-        );
+        vault.setStrategyDescription("Spark sUSDC Vault - RWA-backed yield via Sky Savings Rate (TESTNET)");
 
         // --- Step 10: Transfer vault ownership to timelock (two-step) ---
         // Propose transfer — timelock must call vault.acceptOwnership() to complete

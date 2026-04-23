@@ -223,20 +223,10 @@ contract FullFlowTest is Test {
         DelegatingMockAdapter newAdapter = new DelegatingMockAdapter(address(newMockVault));
 
         // Schedule setAdapter via timelock
-        bytes memory data = abi.encodeWithSelector(
-            RWAVault.setAdapter.selector,
-            IYieldAdapter(address(newAdapter))
-        );
+        bytes memory data = abi.encodeWithSelector(RWAVault.setAdapter.selector, IYieldAdapter(address(newAdapter)));
 
         vm.prank(owner);
-        timelock.schedule(
-            address(vault),
-            0,
-            data,
-            bytes32(0),
-            bytes32(0),
-            48 hours
-        );
+        timelock.schedule(address(vault), 0, data, bytes32(0), bytes32(0), 48 hours);
 
         // Cannot execute before delay
         vm.prank(owner);

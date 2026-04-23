@@ -132,8 +132,8 @@ contract GovStaking is Ownable2Step {
     /// @param account Address to check
     /// @return Earned USDC rewards (6-decimal)
     function earned(address account) public view returns (uint256) {
-        return rewards[account]
-            + (stakedBalance[account] * (rewardPerTokenStored - userRewardPerTokenPaid[account])) / PRECISION;
+        return rewards[account] + (stakedBalance[account] * (rewardPerTokenStored - userRewardPerTokenPaid[account]))
+            / PRECISION;
     }
 
     /// @dev Update reward state for an account before any state change

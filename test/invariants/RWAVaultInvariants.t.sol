@@ -45,7 +45,7 @@ contract RWAVaultInvariants is Test {
             distributor,
             owner,
             guardian,
-            20,   // 0.2% mgmt fee
+            20, // 0.2% mgmt fee
             1000, // 10% perf fee
             100_000e6 // 100K TVL cap
         );

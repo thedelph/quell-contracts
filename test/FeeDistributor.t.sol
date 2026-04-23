@@ -132,10 +132,12 @@ contract FeeDistributorTest is Test {
 
         distributor.distribute();
 
-        // Total distributed: 100 USDC
-        // 60% = 60 to staking, 40% = 40 to treasury (cumulative 40 + 40 = 80)
-        assertEq(usdc.balanceOf(treasuryAddr), 80e6);
-        assertEq(usdc.balanceOf(address(staking)), 60e6);
+        // Post-audit-fix semantics: heldForStakers is not re-split.
+        // New fees this distribute: 40 USDC → 24 to stakers, 16 to treasury.
+        // Stakers receive: 60 previously held + 24 new = 84 USDC.
+        // Treasury cumulative: 40 (first distribute) + 16 (second) = 56 USDC.
+        assertEq(usdc.balanceOf(treasuryAddr), 56e6);
+        assertEq(usdc.balanceOf(address(staking)), 84e6);
         assertEq(usdc.balanceOf(address(distributor)), 0);
     }
 }
