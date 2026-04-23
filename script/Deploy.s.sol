@@ -20,9 +20,9 @@ contract Deploy is Script {
     address constant USDC = 0xaf88d065e77c8cC2239327C5EDb3A432268e5831;
 
     // --- Default Parameters ---
-    uint256 constant MANAGEMENT_FEE_BPS = 20;    // 0.2%
-    uint256 constant PERFORMANCE_FEE_BPS = 1000;  // 10%
-    uint256 constant TVL_CAP = 100_000e6;          // 100K USDC at launch
+    uint256 constant MANAGEMENT_FEE_BPS = 20; // 0.2%
+    uint256 constant PERFORMANCE_FEE_BPS = 1000; // 10%
+    uint256 constant TVL_CAP = 100_000e6; // 100K USDC at launch
 
     function run() external {
         uint256 deployerPk = vm.envUint("PRIVATE_KEY");
@@ -47,9 +47,9 @@ contract Deploy is Script {
 
         // --- Step 1: VestingWallet (4yr vest, 1yr cliff) ---
         VestingWallet vestingWallet = new VestingWallet(
-            deployer,                          // beneficiary (founder)
+            deployer, // beneficiary (founder)
             uint64(block.timestamp + 365 days), // start (after 1yr cliff)
-            uint64(3 * 365 days)               // duration (remaining 3yr)
+            uint64(3 * 365 days) // duration (remaining 3yr)
         );
         console.log("VestingWallet:", address(vestingWallet));
 
@@ -90,7 +90,7 @@ contract Deploy is Script {
             IERC20(USDC),
             IYieldAdapter(address(adapter)),
             distributor,
-            deployer,              // owner (transferred to timelock in step 10)
+            deployer, // owner (transferred to timelock in step 10)
             guardian,
             MANAGEMENT_FEE_BPS,
             PERFORMANCE_FEE_BPS,
@@ -99,9 +99,7 @@ contract Deploy is Script {
         console.log("RWAVault:", address(vault));
 
         // --- Step 9: Set strategy description ---
-        vault.setStrategyDescription(
-            "Spark sUSDC Vault - RWA-backed yield via Sky Savings Rate on Arbitrum"
-        );
+        vault.setStrategyDescription("Spark sUSDC Vault - RWA-backed yield via Sky Savings Rate on Arbitrum");
 
         // --- Step 10: Transfer vault ownership to timelock (two-step) ---
         // Propose transfer -- timelock must call vault.acceptOwnership() to complete

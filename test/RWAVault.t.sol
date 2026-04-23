@@ -180,7 +180,9 @@ contract RWAVaultTest is Test {
         vm.startPrank(bob);
         usdc.approve(address(vault), 20_000e6);
         uint256 maxDep = vault.maxDeposit(bob);
-        vm.expectRevert(abi.encodeWithSignature("ERC4626ExceededMaxDeposit(address,uint256,uint256)", bob, 20_000e6, maxDep));
+        vm.expectRevert(
+            abi.encodeWithSignature("ERC4626ExceededMaxDeposit(address,uint256,uint256)", bob, 20_000e6, maxDep)
+        );
         vault.deposit(20_000e6, bob);
         vm.stopPrank();
     }
@@ -195,14 +197,18 @@ contract RWAVaultTest is Test {
         usdc.mint(bob, 500e6);
         vm.startPrank(bob);
         usdc.approve(address(vault), 500e6);
-        vm.expectRevert(abi.encodeWithSignature("ERC4626ExceededMaxDeposit(address,uint256,uint256)", bob, 500e6, uint256(0)));
+        vm.expectRevert(
+            abi.encodeWithSignature("ERC4626ExceededMaxDeposit(address,uint256,uint256)", bob, 500e6, uint256(0))
+        );
         vault.deposit(500e6, bob);
         vm.stopPrank();
 
         // Redeem should also revert (paused, not emergency — maxRedeem returns 0)
         uint256 aliceShares = vault.balanceOf(alice);
         vm.prank(alice);
-        vm.expectRevert(abi.encodeWithSignature("ERC4626ExceededMaxRedeem(address,uint256,uint256)", alice, aliceShares, uint256(0)));
+        vm.expectRevert(
+            abi.encodeWithSignature("ERC4626ExceededMaxRedeem(address,uint256,uint256)", alice, aliceShares, uint256(0))
+        );
         vault.redeem(aliceShares, alice, alice);
     }
 
@@ -219,7 +225,9 @@ contract RWAVaultTest is Test {
         usdc.mint(bob, 500e6);
         vm.startPrank(bob);
         usdc.approve(address(vault), 500e6);
-        vm.expectRevert(abi.encodeWithSignature("ERC4626ExceededMaxDeposit(address,uint256,uint256)", bob, 500e6, uint256(0)));
+        vm.expectRevert(
+            abi.encodeWithSignature("ERC4626ExceededMaxDeposit(address,uint256,uint256)", bob, 500e6, uint256(0))
+        );
         vault.deposit(500e6, bob);
         vm.stopPrank();
 
@@ -449,7 +457,9 @@ contract RWAVaultTest is Test {
         vm.startPrank(bob);
         usdc.approve(address(vault), 20_000e6);
         uint256 maxDep = vault.maxDeposit(bob);
-        vm.expectRevert(abi.encodeWithSignature("ERC4626ExceededMaxDeposit(address,uint256,uint256)", bob, 20_000e6, maxDep));
+        vm.expectRevert(
+            abi.encodeWithSignature("ERC4626ExceededMaxDeposit(address,uint256,uint256)", bob, 20_000e6, maxDep)
+        );
         vault.deposit(20_000e6, bob);
         vm.stopPrank();
     }
@@ -461,7 +471,9 @@ contract RWAVaultTest is Test {
         usdc.mint(bob, 500e6);
         vm.startPrank(bob);
         usdc.approve(address(vault), 500e6);
-        vm.expectRevert(abi.encodeWithSignature("ERC4626ExceededMaxDeposit(address,uint256,uint256)", bob, 500e6, uint256(0)));
+        vm.expectRevert(
+            abi.encodeWithSignature("ERC4626ExceededMaxDeposit(address,uint256,uint256)", bob, 500e6, uint256(0))
+        );
         vault.deposit(500e6, bob);
         vm.stopPrank();
     }
@@ -484,9 +496,7 @@ contract RWAVaultTest is Test {
         // Mock steakhouse redeem to return assets - 3 (exceeds dust tolerance of 2)
         address yieldVault = adapter.YIELD_VAULT();
         vm.mockCall(
-            yieldVault,
-            abi.encodeWithSelector(IERC4626(yieldVault).redeem.selector),
-            abi.encode(expectedAssets - 3)
+            yieldVault, abi.encodeWithSelector(IERC4626(yieldVault).redeem.selector), abi.encode(expectedAssets - 3)
         );
 
         vm.prank(alice);
@@ -505,9 +515,7 @@ contract RWAVaultTest is Test {
         // Mock steakhouse redeem to revert (simulating Yield vault outage during harvest)
         address yieldVault = adapter.YIELD_VAULT();
         vm.mockCallRevert(
-            yieldVault,
-            abi.encodeWithSelector(IERC4626(yieldVault).redeem.selector),
-            "Yield vault unavailable"
+            yieldVault, abi.encodeWithSelector(IERC4626(yieldVault).redeem.selector), "Yield vault unavailable"
         );
 
         // Deposit should still succeed despite harvest failure (try/catch)
@@ -524,9 +532,7 @@ contract RWAVaultTest is Test {
 
         // Re-mock: make steakhouse redeem revert for any call
         vm.mockCallRevert(
-            yieldVault,
-            abi.encodeWithSelector(IERC4626(yieldVault).redeem.selector),
-            "Yield vault unavailable"
+            yieldVault, abi.encodeWithSelector(IERC4626(yieldVault).redeem.selector), "Yield vault unavailable"
         );
 
         // The deposit itself calls steakhouse.deposit (not redeem), so only the harvest
@@ -550,11 +556,7 @@ contract RWAVaultTest is Test {
 
         // Mock adapter.usdcToShares to return 0 for the fee amount
         // This simulates the fee being too small to convert to steakhouse shares
-        vm.mockCall(
-            address(adapter),
-            abi.encodeWithSelector(adapter.usdcToShares.selector),
-            abi.encode(uint256(0))
-        );
+        vm.mockCall(address(adapter), abi.encodeWithSelector(adapter.usdcToShares.selector), abi.encode(uint256(0)));
 
         // Deposit should succeed — harvest skips when steakSharesToRedeem == 0
         uint256 distributorBefore = usdc.balanceOf(address(distributor));
@@ -574,11 +576,7 @@ contract RWAVaultTest is Test {
 
         // Mock steakhouse redeem to return 0 USDC (fee harvest produces nothing)
         address yieldVault = adapter.YIELD_VAULT();
-        vm.mockCall(
-            yieldVault,
-            abi.encodeWithSelector(IERC4626(yieldVault).redeem.selector),
-            abi.encode(uint256(0))
-        );
+        vm.mockCall(yieldVault, abi.encodeWithSelector(IERC4626(yieldVault).redeem.selector), abi.encode(uint256(0)));
 
         // Deposit should succeed — harvest skips transfer when feeUsdc == 0
         uint256 distributorBefore = usdc.balanceOf(address(distributor));

@@ -178,13 +178,10 @@ contract RWAVault is ERC4626, Ownable2Step {
         return super.withdraw(assets, receiver, owner_);
     }
 
-    function _withdraw(
-        address caller,
-        address receiver,
-        address owner_,
-        uint256 assets,
-        uint256 shares
-    ) internal override {
+    function _withdraw(address caller, address receiver, address owner_, uint256 assets, uint256 shares)
+        internal
+        override
+    {
         if (paused && !emergencyMode) revert Paused();
 
         // Fee harvest already done in redeem()/withdraw() overrides before previewRedeem
@@ -208,9 +205,7 @@ contract RWAVault is ERC4626, Ownable2Step {
             }
             vaultSharesToRedeem = yieldBalance;
         }
-        uint256 usdcReceived = IERC4626(yieldVault).redeem(
-            vaultSharesToRedeem, address(this), address(this)
-        );
+        uint256 usdcReceived = IERC4626(yieldVault).redeem(vaultSharesToRedeem, address(this), address(this));
 
         // Dust tolerance: allow up to 2 wei less than expected
         if (usdcReceived + 2 < assets) revert ExcessiveRounding();
@@ -257,9 +252,7 @@ contract RWAVault is ERC4626, Ownable2Step {
         uint256 vaultSharesToRedeem = adapter.usdcToShares(totalFee);
         if (vaultSharesToRedeem == 0) return;
 
-        try IERC4626(yieldVault).redeem(
-            vaultSharesToRedeem, address(this), address(this)
-        ) returns (uint256 feeUsdc) {
+        try IERC4626(yieldVault).redeem(vaultSharesToRedeem, address(this), address(this)) returns (uint256 feeUsdc) {
             if (feeUsdc > 0) {
                 lastFeeHarvest = block.timestamp;
                 highWaterMark = newHighWaterMark;
@@ -278,7 +271,10 @@ contract RWAVault is ERC4626, Ownable2Step {
     /// @param receiver Address to receive rvUSDC shares
     /// @param minShares Minimum acceptable shares
     /// @return shares Actual shares minted
-    function depositWithSlippage(uint256 assets, address receiver, uint256 minShares) external returns (uint256 shares) {
+    function depositWithSlippage(uint256 assets, address receiver, uint256 minShares)
+        external
+        returns (uint256 shares)
+    {
         // Pre-check: preview may change after _harvestFees, so use minShares - 1
         if (minShares > 0 && previewDeposit(assets) < minShares - 1) revert SlippageExceeded();
         shares = deposit(assets, receiver);
@@ -291,7 +287,10 @@ contract RWAVault is ERC4626, Ownable2Step {
     /// @param owner_ Share owner
     /// @param minAssets Minimum acceptable USDC
     /// @return assets Actual USDC received
-    function redeemWithSlippage(uint256 shares, address receiver, address owner_, uint256 minAssets) external returns (uint256 assets) {
+    function redeemWithSlippage(uint256 shares, address receiver, address owner_, uint256 minAssets)
+        external
+        returns (uint256 assets)
+    {
         assets = redeem(shares, receiver, owner_);
         if (assets < minAssets) revert SlippageExceeded();
     }

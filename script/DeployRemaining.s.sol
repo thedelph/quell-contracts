@@ -48,9 +48,7 @@ contract DeployRemaining is Script {
         proposers[0] = deployer;
         address[] memory executors = new address[](1);
         executors[0] = deployer;
-        TimelockController timelock = new TimelockController(
-            48 hours, proposers, executors, address(0)
-        );
+        TimelockController timelock = new TimelockController(48 hours, proposers, executors, address(0));
         console.log("TimelockController:", address(timelock));
 
         // Step 8: RWAVault
@@ -67,9 +65,7 @@ contract DeployRemaining is Script {
         console.log("RWAVault:", address(vault));
 
         // Step 9: Set strategy description
-        vault.setStrategyDescription(
-            "Spark sUSDC Vault - RWA-backed yield via Sky Savings Rate on Arbitrum"
-        );
+        vault.setStrategyDescription("Spark sUSDC Vault - RWA-backed yield via Sky Savings Rate on Arbitrum");
 
         // Step 10: Transfer vault ownership to timelock
         vault.transferOwnership(address(timelock));
