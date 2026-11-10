@@ -34,7 +34,7 @@ contract RWAVaultHandler is Test {
     }
 
     function deposit(uint256 actorSeed, uint256 amount) external {
-        address actor = actors[actorSeed % 3];
+        address actor = actors[actorSeed % actors.length];
 
         uint256 maxDep = vault.maxDeposit(actor);
         if (maxDep == 0) return;
